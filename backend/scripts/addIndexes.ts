@@ -35,6 +35,12 @@ async function migrate() {
     { name: 'status+createdAt',            coll: 'yaksha_faq_communityposts',          key: { status: 1, createdAt: -1 } },
     { name: 'status+createdAt (unresolved)', coll: 'yaksha_faq_unresolved_searches',   key: { status: 1, createdAt: -1 } },
     { name: 'faqId (unresolved)',          coll: 'yaksha_faq_unresolved_searches',     key: { faqId: 1 } },
+    // Freshness system
+    { name: 'faqId+reviewCycle+voterId',  coll: 'yaksha_faq_fresh_review_votes',       key: { faqId: 1, reviewCycle: 1, voterId: 1 }, options: { unique: true, background: true } },
+    { name: 'faqId+reviewCycle+verdict',  coll: 'yaksha_faq_fresh_review_votes',       key: { faqId: 1, reviewCycle: 1, verdict: 1 } },
+    { name: 'faqId+createdAt',            coll: 'yaksha_faq_fresh_review_logs',        key: { faqId: 1, createdAt: -1 } },
+    { name: 'event+createdAt',            coll: 'yaksha_faq_fresh_review_logs',        key: { event: 1, createdAt: -1 } },
+    { name: 'reviewStatus+flaggedAt',     coll: 'yaksha_faq_faqs',                     key: { reviewStatus: 1, flaggedAt: 1 } },
   ];
 
   for (const idx of indexes) {

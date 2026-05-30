@@ -24,6 +24,13 @@ export interface FAQItem {
   question: string;
   answer: string;
   category?: string;
+  // Freshness system
+  reviewStatus?: 'verified' | 'pending_review' | 'update_requested';
+  lastVerifiedDate?: string;
+  reviewIntervalDays?: number;
+  freshnessTier?: 'evergreen' | 'seasonal' | 'volatile';
+  helpfulVotes?: number;
+  unhelpfulVotes?: number;
 }
 
 export interface SearchResult {

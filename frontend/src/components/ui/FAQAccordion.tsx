@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
 import api from '../../utils/api';
 import type { FAQItem } from '../../types/ui';
+import FreshnessBadge from './FreshnessBadge';
+import FlagOutdatedButton from './FlagOutdatedButton';
 
 interface FAQItemProps extends FAQItem {
   onVoteUpdate?: (id: string, helpfulVotes: number, unhelpfulVotes: number) => void;
+  onFlagged?: (id: string) => void;
 }
 
-const FAQItemComponent = ({ _id, question, answer, helpfulVotes = 0, unhelpfulVotes = 0, onVoteUpdate }: FAQItemProps) => {
+const FAQItemComponent = ({
+  _id, question, answer,
+  helpfulVotes = 0, unhelpfulVotes = 0,
+  reviewStatus, lastVerifiedDate, reviewIntervalDays = 0, freshnessTier,
+  onVoteUpdate, onFlagged,
+}: FAQItemProps) => {
   const [open, setOpen] = useState(false);
   const [voted, setVoted] = useState<'helpful' | 'unhelpful' | null>(null);
   const [hv, setHv] = useState(helpfulVotes);
@@ -32,9 +40,25 @@ const FAQItemComponent = ({ _id, question, answer, helpfulVotes = 0, unhelpfulVo
         className="w-full flex items-start justify-between gap-4 py-4 text-left group"
         aria-expanded={open}
       >
-        <span className="text-sm font-medium text-ink group-hover:text-accent transition-colors leading-snug">
-          {question}
-        </span>
+        <div className="flex flex-col items-start gap-1 flex-1 min-w-0">
+          <span className="text-sm font-medium text-ink group-hover:text-accent transition-colors leading-snug">
+            {question}
+          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <FreshnessBadge
+              reviewStatus={reviewStatus}
+              lastVerifiedDate={lastVerifiedDate}
+              reviewIntervalDays={reviewIntervalDays ?? 0}
+              freshnessTier={freshnessTier}
+              compact
+            />
+            <FlagOutdatedButton
+              faqId={_id}
+              reviewStatus={reviewStatus ?? 'verified'}
+              onFlagged={() => onFlagged?.(_id)}
+            />
+          </div>
+        </div>
         <span
           className={`flex-shrink-0 w-5 h-5 rounded-full border
                       flex items-center justify-center
@@ -48,12 +72,12 @@ const FAQItemComponent = ({ _id, question, answer, helpfulVotes = 0, unhelpfulVo
       </button>
 
       {open && (
-        <div className="pb-4 pr-9">
+        <div className="pb-4 pr-9 space-y-3">
           <p className="text-sm text-ink-soft leading-relaxed whitespace-pre-line">
             {answer}
           </p>
           {/* Was this helpful? */}
-          <div className="mt-3 flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className="text-xs text-ink-faint">Was this helpful?</span>
             <button
               onClick={() => handleVote(true)}

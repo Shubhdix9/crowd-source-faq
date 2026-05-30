@@ -23,6 +23,11 @@ import {
   resolveUnresolved,
   getUnresolvedStats,
 } from '../controllers/unresolvedSearchController';
+import {
+  getEscalated,
+  verifyEscalatedFAQ,
+  dismissEscalatedFAQ,
+} from '../controllers/freshnessController';
 
 const router = Router();
 
@@ -43,6 +48,11 @@ router.get('/community/posts', getCommunityPosts);
 router.get('/search/unresolved-list',         getUnresolvedSearches);
 router.get('/search/unresolved-stats',        getUnresolvedStats);
 router.patch('/search/unresolved/:id/resolve', resolveUnresolved);
+
+// Escalated FAQ management (freshness system)
+router.get('/escalated',                       getEscalated);
+router.post('/escalated/:id/verify',           verifyEscalatedFAQ);
+router.post('/escalated/:id/dismiss',          dismissEscalatedFAQ);
 
 router.post('/faq', createFAQ);
 router.post('/faq/approve', approveFAQ);

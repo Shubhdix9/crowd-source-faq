@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getAllFAQs, getFAQById, createFAQ, updateFAQ, deleteFAQ, checkFAQMatch, getPaginatedFAQs, submitFeedback, reportFAQ } from '../controllers/faqController.js';
+import { flagFAQ, voteReview } from '../controllers/freshnessController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = Router();
@@ -31,5 +32,11 @@ router.patch('/:id/feedback', protect, submitFeedback);
 
 // POST /api/faq/:id/report — Report an FAQ as inaccurate/outdated (any logged-in user)
 router.post('/:id/report', protect, reportFAQ);
+
+// PATCH /api/faq/:id/flag — Manually flag an FAQ as outdated (any logged-in user)
+router.patch('/:id/flag', protect, flagFAQ);
+
+// POST /api/faq/:id/vote-review — Peer vote on a flagged FAQ (any logged-in user)
+router.post('/:id/vote-review', protect, voteReview);
 
 export default router;

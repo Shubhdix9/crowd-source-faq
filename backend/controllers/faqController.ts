@@ -1,9 +1,24 @@
 import { Request, Response } from 'express';
-import FAQ, { IFAQ } from '../models/FAQ.js';
+import { Types } from 'mongoose';
+import FAQ, { type IFAQ } from '../models/FAQ.js';
 import { generateEmbedding } from '../utils/embeddings.js';
 import { logger } from '../utils/logger.js';
 import { invalidateCache } from '../utils/cache.js';
 import { createTeaDropsForFAQ } from './teaNotificationController.js';
+import FreshReviewVote from '../models/FreshReviewVote.js';
+import FreshReviewLog, { type FreshReviewEventType } from '../models/FreshReviewLog.js';
+
+async function logFreshEvent(
+  event: FreshReviewEventType,
+  faqId: Types.ObjectId | string,
+  metadata: Record<string, unknown>
+) {
+  try {
+    await FreshReviewLog.create({ event, faqId, metadata });
+  } catch (e) {
+    logger.warn(`FreshReviewLog failed: ${(e as Error).message}`);
+  }
+}
 
 // Query params interface for getAllFAQs
 interface GetAllFAQsQuery {
@@ -155,7 +170,15 @@ export const getPaginatedFAQs = async (req: Request<{}, {}, {}, GetPaginatedFAQs
 // POST /api/faq — Create a new FAQ (Admin/Moderator only)
 export const createFAQ = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { question, answer, category } = req.body as { question?: string; answer?: string; category?: string };
+    const {
+      question, answer, category,
+      freshnessTier,
+      reviewIntervalDays,
+    } = req.body as {
+      question?: string; answer?: string; category?: string;
+      freshnessTier?: 'evergreen' | 'seasonal' | 'volatile';
+      reviewIntervalDays?: number;
+    };
 
     if (!question || !answer || !category) {
       res.status(400).json({ message: 'Question, answer, and category are required.' });
@@ -165,11 +188,28 @@ export const createFAQ = async (req: Request, res: Response): Promise<void> => {
     // Generate vector embedding for semantic search
     const embedding = await generateEmbedding(`Section: ${category}. Question: ${question}. Answer: ${answer}`);
 
+    const now = new Date();
+    const tier = freshnessTier ?? 'evergreen';
+    const seasonalDefault = parseInt(process.env['FAQ_SEASONAL_DAYS'] ?? '15');
+    const volatileDefault  = parseInt(process.env['FAQ_VOLATILE_DAYS']  ?? '4');
+
+    const interval = reviewIntervalDays
+      ?? (tier === 'seasonal' ? seasonalDefault : tier === 'volatile' ? volatileDefault : 0);
+
     const faq = await FAQ.create({
       question,
       answer,
       category,
       embedding,
+      freshnessTier: tier,
+      reviewIntervalDays: interval,
+      reviewStatus: 'verified',
+      lastVerifiedDate: now,
+      flaggedAt: null,
+      flagType: null,
+      flagReason: null,
+      flaggedBy: null,
+      reviewCycle: 0,
     });
 
     // Invalidate search cache so new FAQ appears in results immediately
@@ -204,6 +244,20 @@ export const updateFAQ = async (req: Request<{ id: string }>, res: Response): Pr
       faq.embedding = await generateEmbedding(
         `Section: ${faq.category}. Question: ${faq.question}. Answer: ${faq.answer}`
       );
+    }
+
+    // Admin edit while under review = re-verification
+    if (faq.reviewStatus === 'pending_review' || faq.reviewStatus === 'update_requested') {
+      const newCycle = faq.reviewCycle + 1;
+      faq.reviewStatus = 'verified';
+      faq.lastVerifiedDate = new Date();
+      faq.flaggedAt = null;
+      faq.flagType = null;
+      faq.flagReason = null;
+      faq.flaggedBy = null;
+      faq.reviewCycle = newCycle;
+      await FreshReviewVote.deleteMany({ faqId: faq._id });
+      await logFreshEvent('mod_verified', faq._id, { moderatorId: req.user!._id.toString(), reviewCycle: newCycle });
     }
 
     await faq.save();

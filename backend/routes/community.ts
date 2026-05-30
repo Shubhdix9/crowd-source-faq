@@ -17,11 +17,13 @@ import {
   checkDuplicateController,
 } from '../controllers/communityController.js';
 import { searchCommunityPosts } from '../controllers/communitySearchController.js';
+import { getReviewQueue } from '../controllers/freshnessController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = Router();
 
 router.get('/search', protect, searchCommunityPosts);
+router.get('/review-queue', getReviewQueue); // public — any visitor can see pending FAQs
 router.get('/solved', getSolvedPosts); // public endpoint for "Top Solved Today" widget
 router.get('/answers/list', protect, getAnswersList); // paginated expert answers feed
 
