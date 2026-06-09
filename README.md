@@ -7,6 +7,23 @@ Refer More Here -> [`docs/`](docs/README.md)
 
 ---
 
+## About
+
+Shamagama (internally "Yaksha FAQ Portal") is a knowledge-management platform that turns an organisation's accumulated conversations into a searchable, self-maintaining FAQ. It combines a hybrid vector + keyword search engine with a community Q&A board and a fully automated ingestion pipeline that pulls transcripts from Zoom meetings, extracts questions and answers with AI, and indexes them for retrieval in seconds.
+
+What makes it different from a traditional forum or wiki:
+
+- **Knowledge comes from where work happens.** Zoom recordings, webhooks, and manual uploads feed the knowledge base automatically. There is no separate "content team" workflow to keep up with.
+- **The community board is not a social media feed.** Its purpose is to surface unanswered questions, get them answered, and promote the best answers back into the official FAQ. Every feature ladders up to that loop.
+- **Automation, not moderation, scales the operation.** AI auto-answers, audits FAQ quality on a 6-hour cycle, retries failed Zoom ingestion with exponential backoff, and anonymises deleted users. Humans handle exceptions; the platform handles the steady state.
+- **Per-user Zoom OAuth.** Each user connects their own Zoom account. There is no org-level admin token to provision, and the platform never sees what it does not need to see.
+
+The platform is built for organisations whose community generates more questions than a human team can answer — student cohorts, open-source projects, internal employee forums, customer-success communities. Target scale: 1 million registered users with constant conversational input.
+
+For the architecture deep-dive, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For pipeline internals (auto-answer, FAQ audit, search, Zoom), see [docs/PIPELINES.md](docs/PIPELINES.md).
+
+---
+
 ## Tech Stack
 
 ### Frontend
@@ -83,6 +100,8 @@ Full reference in [`docs/`](docs/README.md):
 | Project context | [docs/context.md](docs/context.md) |
 | Issues tracking | [docs/issues.md](docs/issues.md) |
 | Wire protocol | [docs/wire.md](docs/wire.md) |
+
+[Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [License](./LICENSE)
 
 ---
 
