@@ -1,4 +1,4 @@
-# Shamagama (Yaksha FAQ Portal)
+# Samagama (Yaksha FAQ Portal)
 
 Full-stack FAQ portal with semantic vector search, AI-powered community moderation, and an expert promotion layer. Built to handle 1 million registered users.
 
@@ -24,7 +24,7 @@ The platform is the operator. People handle exceptions, not the steady state.
 
 ## About
 
-Shamagama (internally "Yaksha FAQ Portal") turns an organisation's accumulated conversations into a searchable, self-maintaining FAQ. It combines hybrid vector + keyword search with a community Q&A board and a fully automated ingestion pipeline that pulls transcripts from Zoom, extracts Q&A with AI, and indexes them for retrieval in seconds.
+Samagama (internally "Yaksha FAQ Portal") turns an organisation's accumulated conversations into a searchable, self-maintaining FAQ. It combines hybrid vector + keyword search with a community Q&A board and a fully automated ingestion pipeline that pulls transcripts from Zoom, extracts Q&A with AI, and indexes them for retrieval in seconds.
 
 Built for organisations whose community generates more questions than a human team can answer — student cohorts, open-source projects, internal forums, customer-success communities. Target scale: 1 million registered users with constant conversational input.
 
@@ -105,7 +105,7 @@ For per-route behaviour and field schemas, see [docs/ARCHITECTURE.md](docs/ARCHI
 ## Project Structure
 
 ```
-shamagama/
+Samagama/
 ├── backend/           # Express + TypeScript API
 ├── frontend/          # React + Vite SPA
 ├── docs/              # Full documentation
