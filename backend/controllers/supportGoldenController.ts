@@ -33,7 +33,11 @@ import {
   requireFeatureOn,
 } from './supportCore.js';
 import { awardSpurtiPoints, spendSpurtiPoints, refundSpurtiPoints } from '../services/promotionService.js';
-import { logger } from '../utils/http/logger.js';
+// L1 fix (v1.68): use the named `adminLog` for admin-action
+// error logging so it carries the [admin] category tag. The
+// `getMySpurtiPoints` error path is a user-self read — `authLog`
+// fits there.
+import { adminLog, authLog } from '../utils/http/logger.js';
 
 function asStringParam(v: string | string[] | undefined): string | undefined {
   if (Array.isArray(v)) return v[0];
@@ -167,7 +171,7 @@ export async function convertToGolden(req: Request, res: Response): Promise<void
 
     res.json({ request: stripAdminOnlyFields(request.toObject(), true) });
   } catch (err) {
-    logger.error(`[supportGolden] convertToGolden failed: ${(err as Error).message}`);
+    adminLog.error('convertToGolden failed', { error: (err as Error).message });
     res.status(500).json({ message: 'Failed to convert ticket to Golden.' });
   }
 }
@@ -232,7 +236,7 @@ export async function unconverGolden(req: Request, res: Response): Promise<void>
         // with the rollback so the ticket state is consistent. The audit
         // trail still records the rollback; an admin can re-credit via
         // /award-sp if needed.
-        logger.warn(`[supportGolden] refund failed during rollback: ${(spErr as Error).message}`);
+        adminLog.warn('refund failed during rollback', { error: (spErr as Error).message });
       }
     }
 
@@ -263,7 +267,7 @@ export async function unconverGolden(req: Request, res: Response): Promise<void>
 
     res.json({ request: stripAdminOnlyFields(request.toObject(), true) });
   } catch (err) {
-    logger.error(`[supportGolden] unconverGolden failed: ${(err as Error).message}`);
+    adminLog.error('unconverGolden failed', { error: (err as Error).message });
     res.status(500).json({ message: 'Failed to roll back Golden conversion.' });
   }
 }
@@ -336,7 +340,7 @@ export async function awardSpurtiPointsAdmin(req: Request, res: Response): Promi
 
     res.json({ userId, newBalance });
   } catch (err) {
-    logger.error(`[supportGolden] awardSpurtiPointsAdmin failed: ${(err as Error).message}`);
+    adminLog.error('awardSpurtiPointsAdmin failed', { error: (err as Error).message });
     res.status(500).json({ message: 'Failed to adjust Spurti Points.' });
   }
 }
@@ -388,7 +392,7 @@ export async function getMySpurtiPoints(req: Request, res: Response): Promise<vo
       canSubmitGolden,
     });
   } catch (err) {
-    logger.error(`[supportGolden] getMySpurtiPoints failed: ${(err as Error).message}`);
+    authLog.error('getMySpurtiPoints failed', { error: (err as Error).message });
     res.status(500).json({ message: 'Failed to load Spurti Points.' });
   }
 }
@@ -476,7 +480,7 @@ export async function getGoldenQueue(req: Request, res: Response): Promise<void>
 
     res.json({ items, myQueuePosition, ticketsAhead, mySpCost });
   } catch (err) {
-    logger.error(`[supportGolden] getGoldenQueue failed: ${(err as Error).message}`);
+    adminLog.error('getGoldenQueue failed', { error: (err as Error).message });
     res.status(500).json({ message: 'Failed to load Golden queue.' });
   }
 }
