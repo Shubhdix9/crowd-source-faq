@@ -579,16 +579,26 @@ export async function updateInsight(req: Request, res: Response): Promise<void> 
     return;
   }
 
+  // v1.68 — H3 fix: was in-memory mutate + save(). Atomic
+  // findOneAndUpdate with the same filter as the read so a
+  // concurrent updateInsight on the same insight doesn't lose
+  // the other's fields.
   if (status) {
-    insight.status = status;
     const userId = (req as Request & { user?: { id: string } }).user?.id;
-    if (userId) {
-      insight.reviewedBy = new (await import('mongoose')).Types.ObjectId(userId);
-    }
-    insight.reviewedAt = new Date();
+    const reviewedBy = userId ? new mongoose.Types.ObjectId(userId) : null;
+    const reviewedAt = new Date();
+    await ZoomInsight.findOneAndUpdate(
+      { _id: insight._id },
+      {
+        $set: {
+          status,
+          ...(reviewedBy ? { reviewedBy } : {}),
+          reviewedAt,
+        },
+      },
+    );
   }
 
-  await insight.save();
   httpLog.info(`[Zoom Insight] ${status} by user ${(req as Request & { user?: { id: string } }).user?.id}: ${insight._id}`);
   res.json({ insight });
 }
@@ -634,8 +644,11 @@ export async function convertInsightToFAQ(req: Request, res: Response): Promise<
       httpLog.warn(`[zoom] Failed to generate embedding for FAQ ${faq._id}: ${(err as Error).message}`);
     });
 
-    insight.publishedFaqId = faq._id as mongoose.Types.ObjectId;
-    await insight.save();
+    // v1.68 — H3 fix: atomic $set for publishedFaqId.
+    await ZoomInsight.findOneAndUpdate(
+      { _id: insight._id },
+      { $set: { publishedFaqId: faq._id as mongoose.Types.ObjectId } },
+    );
 
     httpLog.info(`[Zoom] Insight ${insight._id} promoted to FAQ ${faq._id}`);
     res.json({ faq });
