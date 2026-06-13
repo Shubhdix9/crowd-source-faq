@@ -9,7 +9,7 @@
  *
  * v1.68 (HF API mode) — When HUGGINGFACE_API_KEY is set, route
  * all embedding calls through the HF Inference API at
- * https://api-inference.huggingface.co/models/<model>.
+ * https://router.huggingface.co/hf-inference/models/<model>.
  * No 1.2GB ONNX download, no in-process model load, just a
  * network call. When unset, fall back to running the model
  * in-process via @huggingface/transformers (the maintained
@@ -43,7 +43,19 @@ export const EMBEDDING_DIM = 1024;
 export const QUERY_PROMPT = 'Represent this sentence for searching relevant passages: ';
 
 // ── HF Inference API path ────────────────────────────────────────────
-const HF_API_BASE = 'https://api-inference.huggingface.co/models';
+// v1.68.1 — Switched from the legacy `api-inference.huggingface.co`
+// subdomain to the new `router.huggingface.co/hf-inference/`
+// path. The legacy subdomain has been unresolvable on some
+// corporate / VPN DNS setups (ENOTFOUND), which silently
+// broke every embedding call. The new path resolves
+// everywhere we tested.
+//
+// Both endpoints return the same model, same 1024-dim
+// vector, and the new endpoint's un-normalized output is
+// passed through our existing `normalizeL2()` step
+// downstream (see callHfApiEmbedding) so the Atlas
+// dotProduct index still sees L2-normalized vectors.
+const HF_API_BASE = 'https://router.huggingface.co/hf-inference/models';
 
 function getHfApiKey(): string | null {
   return (process.env.HUGGINGFACE_API_KEY ?? '').trim() || null;

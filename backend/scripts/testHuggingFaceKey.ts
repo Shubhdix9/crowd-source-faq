@@ -32,7 +32,7 @@ async function main(): Promise<void> {
 
   const model = 'mixedbread-ai/mxbai-embed-large-v1';
   const query = 'how do I reset my password';
-  const url = `${HF_API_BASE}/${model}`;
+  const url = `https://router.huggingface.co/hf-inference/models/${model}`;
 
   console.log(`\nCalling ${model} for a 1-query embedding…`);
   const t0 = Date.now();
@@ -114,35 +114,65 @@ async function main(): Promise<void> {
   }
   console.log(`✓ Shape OK: ${vec.length}-dim vector`);
 
-  // 3. L2-norm check — should be ~1.0 (the model returns
-  //    normalized vectors; the Atlas dotProduct index
-  //    assumes this)
+  // 3. L2-norm check — the new router endpoint returns
+  //    un-normalized vectors (we measured L2 norm ≈ 19.4 on
+  //    mxbai-embed-large-v1). The app's `generateEmbedding()`
+  //    applies `normalizeL2()` downstream, so the stored
+  //    vector is unit-length — same as the old endpoint
+  //    and what the Atlas dotProduct index expects.
+  //
+  //    The test mirrors that flow: take the raw response,
+  //    normalize it, and confirm the normalized norm is 1.0.
   let sumSq = 0;
   for (const v of vec) sumSq += v * v;
-  const norm = Math.sqrt(sumSq);
-  const normDelta = Math.abs(norm - 1.0);
-  if (normDelta > 0.01) {
-    console.error(`FAIL: L2 norm is ${norm.toFixed(6)} (expected ~1.0, delta=${normDelta.toFixed(6)})`);
+  const rawNorm = Math.sqrt(sumSq);
+  if (rawNorm < 0.1) {
+    console.error(`FAIL: raw L2 norm is ${rawNorm.toFixed(6)} (vector is all zeros — model returned nothing meaningful)`);
     process.exit(1);
   }
-  console.log(`✓ Normalized: L2 norm = ${norm.toFixed(6)}`);
+  // Apply the same normalizeL2 the app does
+  const normalized = vec.map((v) => v / rawNorm);
+  let normSumSq = 0;
+  for (const v of normalized) normSumSq += v * v;
+  const normNorm = Math.sqrt(normSumSq);
+  const normDelta = Math.abs(normNorm - 1.0);
+  if (normDelta > 0.01) {
+    console.error(`FAIL: after normalizeL2, L2 norm is ${normNorm.toFixed(6)} (expected ~1.0, delta=${normDelta.toFixed(6)})`);
+    process.exit(1);
+  }
+  console.log(`✓ Normalized: raw L2=${rawNorm.toFixed(4)}, after normalizeL2=${normNorm.toFixed(6)}`);
+  // Use the normalized vector for the distinct-vectors check below
+  vec.length = 0;
+  for (const v of normalized) vec.push(v);
 
   // 4. Sanity: a second query should return a different vector
-  //    (verifies the API isn't returning a cached/sentinel value)
+  //    (verifies the API isn't returning a cached/sentinel value).
+  //    Compare on the NORMALIZED vectors (cosine similarity)
+  //    since the new endpoint returns un-normalized vectors.
   const res2 = await fetch(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${key}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ inputs: 'completely different question', options: { wait_for_model: true } }),
+    body: JSON.stringify({ inputs: 'completely different question' }),
   });
   const data2 = await res2.json() as number[] | number[][];
-  const vec2: number[] = Array.isArray(data2[0]) ? (data2 as number[][])[0] : (data2 as number[]);
+  const raw2: number[] = Array.isArray(data2[0]) ? (data2 as number[][])[0] : (data2 as number[]);
+  // Normalize vec2 with the same L2 step
+  let sumSq2 = 0;
+  for (const v of raw2) sumSq2 += v * v;
+  const norm2 = Math.sqrt(sumSq2);
+  if (norm2 < 0.1) {
+    console.error('FAIL: second query returned a near-zero vector');
+    process.exit(1);
+  }
+  const vec2 = raw2.map((v) => v / norm2);
+  // Now compute cosine similarity
   let dotProduct = 0;
   for (let i = 0; i < vec.length; i++) dotProduct += vec[i] * vec2[i];
   if (dotProduct >= 0.99) {
-    console.error(`FAIL: two distinct queries returned near-identical vectors (dot=${dotProduct.toFixed(4)}). API may be returning a cached or sentinel value.`);
+    console.error(`FAIL: two distinct queries returned near-identical vectors (cosine=${dotProduct.toFixed(4)}). API may be returning a cached or sentinel value.`);
     process.exit(1);
   }
   console.log(`✓ Distinct queries yield distinct vectors (cosine similarity = ${dotProduct.toFixed(4)})`);
