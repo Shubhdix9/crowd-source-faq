@@ -168,21 +168,22 @@ export const createPost = async (req: Request, res: Response): Promise<void> => 
 export const toggleUpvote = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) { res.status(401).json({ message: 'Not authorized' }); return; }
 
-  const post = await CommunityPost.findById(req.params.id);
-  if (!post) {
-    res.status(404).json({ message: 'Post not found.' });
-    return;
-  }
-  // v1.69 — Phase 3d: scope by program. Upvotes must belong to
-  // the active program.
-  const programContext = req.programContext;
-  if (programContext) {
-    const postBatch = (post as { batchId?: Types.ObjectId | string | null }).batchId;
-    if (!postBatch || postBatch.toString() !== programContext.batchId) {
+  try {
+    const post = await CommunityPost.findById(req.params.id);
+    if (!post) {
       res.status(404).json({ message: 'Post not found.' });
       return;
     }
-  }
+    // v1.69 — Phase 3d: scope by program. Upvotes must belong to
+    // the active program.
+    const programContext = req.programContext;
+    if (programContext) {
+      const postBatch = (post as { batchId?: Types.ObjectId | string | null }).batchId;
+      if (!postBatch || postBatch.toString() !== programContext.batchId) {
+        res.status(404).json({ message: 'Post not found.' });
+        return;
+      }
+    }
 
     const userId = req.user!._id.toString();
     const alreadyUpvoted = post.upvotes.map((u: Types.ObjectId) => u.toString()).includes(userId);

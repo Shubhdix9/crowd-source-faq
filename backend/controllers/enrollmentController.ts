@@ -206,7 +206,8 @@ export async function enrollUser(req: Request, res: Response): Promise<void> {
  */
 export async function updateProgramRole(req: Request, res: Response): Promise<void> {
   const programContext = req.programContext;
-  const userId = req.params.userId;
+  const rawUserId = req.params.userId;
+  const userId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
   if (!programContext) {
     res.status(400).json({ message: 'batchId is required.' });
     return;
@@ -244,7 +245,8 @@ export async function updateProgramRole(req: Request, res: Response): Promise<vo
  */
 export async function removeEnrollment(req: Request, res: Response): Promise<void> {
   const programContext = req.programContext;
-  const userId = req.params.userId;
+  const rawUserId = req.params.userId;
+  const userId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
   if (!programContext) {
     res.status(400).json({ message: 'batchId is required.' });
     return;

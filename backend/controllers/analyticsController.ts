@@ -64,6 +64,7 @@ export const getFailedQueries = async (req: Request, res: Response): Promise<voi
 export const getSearchAnalytics = async (req: Request, res: Response): Promise<void> => {
   if (!requireAdminOrMod(req, res)) return;
   try {
+    const batchIdParam = (req.query.batchId as string | undefined) ?? null;
     const totalSearches = await SearchLog.countDocuments(withProgramScope({}, batchIdParam));
 
     const popularQueries: PopularQuery[] = await SearchLog.aggregate([

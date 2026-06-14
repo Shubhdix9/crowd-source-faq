@@ -79,14 +79,33 @@ export async function listFeatureFlags(_req: Request, res: Response): Promise<vo
 const _cache = new Map<string, { enabled: boolean; expiresAt: number }>();
 const CACHE_TTL_MS = 30_000;
 
-export async function isFeatureEnabled(key: FeatureFlagKey): Promise<boolean> {
-  const cached = _cache.get(key);
+export async function isFeatureEnabled(
+  key: FeatureFlagKey,
+  batchId: string | null = null
+): Promise<boolean> {
+  // v1.69 — Phase 8: per-program flag overrides. The lookup order
+  // is (1) per-program override with `(key, batchId)`, falling back
+  // to (2) the global default with `(key, batchId=null)`. A null
+  // batchId is treated as the global scope and matches the
+  // (batchId: null) doc directly.
+  const cacheKey = batchId ? `${key}::${batchId}` : key;
+  const cached = _cache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.enabled;
   try {
     await ensureFlag(key);
-    const flag = await FeatureFlag.findOne({ key }).select('enabled').lean();
+    const flag = await FeatureFlag.findOne({
+      key,
+      $or: [
+        ...(batchId ? [{ batchId: new Types.ObjectId(batchId) }] : []),
+        { batchId: null },
+      ],
+    })
+      // Per-program override wins over global default.
+      .sort({ batchId: -1 })
+      .select('enabled')
+      .lean();
     const enabled = !!(flag && flag.enabled);
-    _cache.set(key, { enabled, expiresAt: Date.now() + CACHE_TTL_MS });
+    _cache.set(cacheKey, { enabled, expiresAt: Date.now() + CACHE_TTL_MS });
     return enabled;
   } catch {
     return false; // fail closed
