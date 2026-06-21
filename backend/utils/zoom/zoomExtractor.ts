@@ -15,7 +15,7 @@
 
 import { ZoomInsightType } from '../../models/ZoomMeeting.js';
 import { resolveProviderAsync } from '../ai/aiProvider.js';
-import { parseVTTWithSpeakers, extractSnippet, isEmptyTranscript, TranscriptSegment } from './vttParser.js';
+import { parseVTTWithSpeakers, extractSnippet, isEmptyTranscript, isEmptyFromSegments, TranscriptSegment } from './vttParser.js';
 import { logger } from '../http/logger.js';
 
 export interface ExtractedItem {
@@ -36,9 +36,14 @@ export interface ExtractedItem {
 function parseTranscript(raw: string): TranscriptSegment[] {
   const trimmed = raw.trim();
   if (trimmed.startsWith('WEBVTT')) {
-    const { warning } = isEmptyTranscript(raw);
+    // v1.70 — fix #10: parse VTT once, derive both the warning log AND
+    // the segments from the same parse. Previously isEmptyTranscript
+    // internally called parseVTT (→ parseVTTWithSpeakers), and then we
+    // called parseVTTWithSpeakers again on the same content below.
+    const segments = parseVTTWithSpeakers(raw);
+    const { warning } = isEmptyFromSegments(segments);
     if (warning) logger.warn('[zoomExtractor] Transcript below 50 chars — processing anyway.');
-    return parseVTTWithSpeakers(raw);
+    return segments;
   }
   // Plain .txt: one line = one paragraph
   return trimmed

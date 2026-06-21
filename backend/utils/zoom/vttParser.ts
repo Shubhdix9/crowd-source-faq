@@ -188,3 +188,21 @@ export function isEmptyTranscript(vttContent: string): { empty: boolean; warning
   const chars = text.replace(/\s/g, '').length;
   return { empty: chars < 30, warning: chars < 50 };
 }
+
+/**
+ * v1.70 — fix #10: same empty-detection logic, but takes the
+ * already-parsed segments instead of the raw VTT content. Lets callers
+ * parse once and reuse the result for both the empty-check and
+ * downstream processing — previously the empty check internally called
+ * parseVTT (which itself calls parseVTTWithSpeakers), so callers that
+ * also needed the segments were parsing the same transcript twice.
+ *
+ * Thresholds match isEmptyTranscript (empty <30 chars, warning <50).
+ */
+export function isEmptyFromSegments(segments: TranscriptSegment[]): { empty: boolean; warning: boolean } {
+  const chars = segments
+    .map((s) => `${s.speaker ? s.speaker + ' ' : ''}${s.text}`)
+    .join('')
+    .replace(/\s/g, '').length;
+  return { empty: chars < 30, warning: chars < 50 };
+}

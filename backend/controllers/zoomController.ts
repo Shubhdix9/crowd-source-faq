@@ -19,7 +19,7 @@ import mongoose from 'mongoose';
 import { ZoomMeeting, ZoomInsight } from '../models/ZoomMeeting.js';
 import User from '../models/User.js';
 import { downloadTranscriptAsUser, getPastRecordings } from '../utils/zoom/zoomOAuth.js';
-import { parseVTT, parseVTTWithSpeakers, isEmptyTranscript } from '../utils/zoom/vttParser.js';
+import { parseVTT, parseVTTWithSpeakers, isEmptyTranscript, isEmptyFromSegments } from '../utils/zoom/vttParser.js';
 import { processZoomMeetingForKnowledge } from '../services/knowledgeBase.js';
 import { extractInsightsFromTranscript } from '../utils/zoom/zoomExtractor.js';
 import { CircuitOpenError } from '../utils/http/circuitBreaker.js';
@@ -377,8 +377,14 @@ export async function processTranscriptPayloadInternal(
   });
 
   try {
-    // Empty check (both formats)
-    const { empty, warning } = isEmptyTranscript(rawContent);
+    // Empty check (both formats).
+    // v1.70 — fix #10: parse VTT ONCE, derive both the empty-check
+    // AND the segments from the same parse. Previously isEmptyTranscript
+    // internally called parseVTT (→ parseVTTWithSpeakers), and then
+    // we called parseVTTWithSpeakers again on the same content to
+    // extract segments. Double work for every ingested transcript.
+    const segments = parseVTTWithSpeakers(rawContent);
+    const { empty, warning } = isEmptyFromSegments(segments);
     if (empty) {
       await ZoomMeeting.findByIdAndUpdate(meeting._id, {
         status: 'failed',
@@ -392,8 +398,6 @@ export async function processTranscriptPayloadInternal(
       httpLog.warn(`[Zoom] Transcript for meeting ${meeting._id} is short (<50 chars) — processing anyway`);
     }
 
-    // Parse: VTT with speakers or plain text
-    const segments = parseVTTWithSpeakers(rawContent);
     const plainText = segments.map(s => `${s.speaker ? s.speaker + ': ' : ''}${s.text}`).join('\n');
 
     await ZoomMeeting.findByIdAndUpdate(meeting._id, {
