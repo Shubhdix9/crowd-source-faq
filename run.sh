@@ -218,11 +218,8 @@ start_backend() {
   touch "$SESSION_LOG"
   echo "$SESSION_LOG" > /tmp/yaksha-session-log
 
-  # Keep latest symlink for easy access
-  ln -sf "session_${SESSION_TIMESTAMP}.txt" "$ROOT/main_log.txt" 2>/dev/null || true
-
   # Run tsx — prefix each line with [backend] dim tag for greppable scrollback.
-  ../node_modules/.bin/tsx watch server.ts 2>&1 | \
+  ../node_modules/.bin/tsx watch src/server.ts 2>&1 | \
     sed -u "s/^\([^[]]*\)/${F_DIM}[backend]${F_RESET} \1/" | \
     tee "$SESSION_LOG" &
   BACKEND_PID=$!
@@ -279,7 +276,7 @@ start_frontend() {
   fi
 
   # Run vite — prefix with [frontend] dim tag, append to session log
-  npm run dev 2>&1 | \
+  pnpm run dev 2>&1 | \
     sed -u "s/^\([^[]]*\)/${F_DIM}[frontend]${F_RESET} \1/" | \
     tee -a "$SESSION_LOG" &
   FRONTEND_PID=$!

@@ -56,7 +56,7 @@ else
 
   log "checking Node.js..."
   node --version > /dev/null || die "Node.js not found"
-  [ ! -x "$VITE" ] && die "vite not found at $VITE — run: cd frontend && npm install"
+  [ ! -x "$VITE" ] && die "vite not found at $VITE — run: pnpm install"
 
   # Session log — timestamped, kept in logs/
   SESSION_TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')

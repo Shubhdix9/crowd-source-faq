@@ -66,7 +66,7 @@ const run = async () => {
     };
 
     console.log('[E2E Orchestrator] Seeding database...');
-    const seedProcess = spawn('npx', ['tsx', 'backend/scripts/seed.ts'], {
+    const seedProcess = spawn('npx', ['tsx', 'backend/src/scripts/seed.ts'], {
       cwd: rootDir,
       env,
       stdio: 'inherit',
@@ -85,7 +85,7 @@ const run = async () => {
     });
 
     console.log('[E2E Orchestrator] Starting Backend server...');
-    backendProcess = spawn('npx', ['tsx', 'backend/server.ts'], {
+    backendProcess = spawn('npx', ['tsx', 'backend/src/server.ts'], {
       cwd: rootDir,
       env,
       stdio: 'inherit',

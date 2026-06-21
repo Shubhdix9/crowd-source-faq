@@ -75,7 +75,7 @@ else
 
   log "checking Node.js..."
   node --version > /dev/null || die "Node.js not found"
-  [ ! -x "$TSX" ] && die "tsx not found at $TSX — run: cd backend && npm install"
+  [ ! -x "$TSX" ] && die "tsx not found at $TSX — run: pnpm install"
 
   # Session log — timestamped, kept in logs/ next to run.sh
   SESSION_TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')
@@ -83,7 +83,7 @@ else
   mkdir -p "$ROOT/logs"
   ln -sf "backend_${SESSION_TIMESTAMP}.txt" "$ROOT/backend_log.txt" 2>/dev/null || true
 
-  log "starting backend (tsx watch server.ts)..."
+  log "starting backend (tsx watch src/server.ts)..."
   echo ""
 
   # Kill orphaned tsx on port 6767 before starting
@@ -91,7 +91,7 @@ else
   sleep 1
 
   # tee to /tmp log (back-compat with old behavior) AND the session log
-  "$TSX" watch server.ts 2>&1 | \
+  "$TSX" watch src/server.ts 2>&1 | \
     sed -u "s/^\([^[]]*\)/${F_DIM}[backend]${F_RESET} \1/" | \
     tee "$SESSION_LOG" > /tmp/yaksha-backend.log &
 
