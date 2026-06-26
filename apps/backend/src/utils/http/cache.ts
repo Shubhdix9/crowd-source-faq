@@ -8,23 +8,131 @@
  * Then set REDIS_URL and REDIS_TOKEN in your .env
  */
 
-import { Redis } from '@upstash/redis';
+import { Redis as UpstashRedis } from '@upstash/redis';
+import IORedis from 'ioredis';
 import { logger } from './logger.js';
 
-// Lazy singleton — only initialized when REDIS_URL is set
-let redis: Redis | null = null;
+// Unified Cache Client Interface
+interface CacheClient {
+  get<T>(key: string): Promise<T | null>;
+  set(key: string, value: any, options?: { ex: number }): Promise<void>;
+  scan<T = any>(cursor: number, options: { match: string; count: number }): Promise<[number, string[]]>;
+  del(...keys: string[]): Promise<void>;
+}
 
-function getRedis(): Redis | null {
-  if (!process.env.REDIS_URL || !process.env.REDIS_TOKEN) {
+let redisClient: CacheClient | null = null;
+let useLocalFallback = false;
+
+function getRedis(): CacheClient | null {
+  if (redisClient) return redisClient;
+
+  // 1. Try Upstash REST Client first if configured and fallback is not active
+  const upstashUrl = process.env.REDIS_URL;
+  const upstashToken = process.env.REDIS_TOKEN;
+  
+  if (!useLocalFallback && upstashUrl && upstashUrl !== '#' && upstashToken && upstashToken !== '#') {
+    try {
+      const client = new UpstashRedis({
+        url: upstashUrl,
+        token: upstashToken,
+      });
+      // Wrap Upstash client
+      redisClient = {
+        async get<T>(key: string): Promise<T | null> {
+          try {
+            return await client.get<T>(key);
+          } catch (err) {
+            handleClientError(err);
+            throw err;
+          }
+        },
+        async set(key: string, value: any, options?: { ex: number }): Promise<void> {
+          try {
+            await client.set(key, value, options);
+          } catch (err) {
+            handleClientError(err);
+            throw err;
+          }
+        },
+        async scan(cursor: number, options: { match: string; count: number }): Promise<[number, string[]]> {
+          try {
+            const [nextCursor, keys] = await client.scan(cursor, options);
+            return [Number(nextCursor), keys];
+          } catch (err) {
+            handleClientError(err);
+            throw err;
+          }
+        },
+        async del(...keys: string[]): Promise<void> {
+          try {
+            await client.del(...keys);
+          } catch (err) {
+            handleClientError(err);
+            throw err;
+          }
+        }
+      };
+      return redisClient;
+    } catch (err) {
+      logger.warn(`[cache] Failed to initialize Upstash Redis REST client: ${(err as Error).message}`);
+    }
+  }
+
+  // 2. Fall back to local TCP Redis using ioredis
+  return getLocalRedisClient();
+}
+
+function getLocalRedisClient(): CacheClient | null {
+  try {
+    const localUrl = 'redis://127.0.0.1:6379';
+    const localIo = new IORedis(localUrl, {
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+    });
+    localIo.on('error', (err) => {
+      // Suppress local connection errors to prevent crashes
+    });
+    
+    redisClient = {
+      async get<T>(key: string): Promise<T | null> {
+        const val = await localIo.get(key);
+        return val ? JSON.parse(val) as T : null;
+      },
+      async set(key: string, value: any, options?: { ex: number }): Promise<void> {
+        const stringVal = JSON.stringify(value);
+        if (options?.ex) {
+          await localIo.set(key, stringVal, 'EX', options.ex);
+        } else {
+          await localIo.set(key, stringVal);
+        }
+      },
+      async scan(cursor: number, options: { match: string; count: number }): Promise<[number, string[]]> {
+        const [nextCursor, keys] = await localIo.scan(cursor, 'MATCH', options.match, 'COUNT', options.count);
+        return [Number(nextCursor), keys];
+      },
+      async del(...keys: string[]): Promise<void> {
+        if (keys.length > 0) {
+          await localIo.del(...keys);
+        }
+      }
+    };
+    logger.info(`[cache] Initialized local fallback IORedis client pointing to ${localUrl}`);
+    return redisClient;
+  } catch (err) {
+    logger.warn(`[cache] Failed to initialize local fallback IORedis: ${(err as Error).message}`);
     return null;
   }
-  if (!redis) {
-    redis = new Redis({
-      url: process.env.REDIS_URL,
-      token: process.env.REDIS_TOKEN,
-    });
+}
+
+function handleClientError(err: any) {
+  const msg = (err as Error).message || '';
+  if (msg.includes('rate limit') || msg.includes('quota') || msg.includes('Forbidden') || msg.includes('Unauthorized')) {
+    if (!useLocalFallback) {
+      logger.warn(`[cache] Upstash Redis error detected: ${msg}. Switching to local Redis fallback.`);
+      useLocalFallback = true;
+      redisClient = null; // Clear client to force rebuild with local
+    }
   }
-  return redis;
 }
 
 /** Simple hash for cache keys — deterministic, short */

@@ -30,27 +30,48 @@ import { logger } from '../http/logger.js';
 
 let _client: IORedis | null = null;
 let _clientInitialized = false;
+let useLocalFallback = false;
+
+function buildLocalClient(): IORedis {
+  const localClient = new IORedis('redis://127.0.0.1:6379', {
+    maxRetriesPerRequest: 3,
+    lazyConnect: true,
+  });
+  localClient.on('error', (err) => {
+    // Suppress local connection errors
+  });
+  return localClient;
+}
 
 function buildRedisClient(): IORedis | null {
   const url = process.env.REDIS_TCP_URL;
-  if (!url) return null;
+  if (useLocalFallback || !url || url === '#' || url.trim() === '') {
+    return buildLocalClient();
+  }
   try {
     const u = new URL(url);
-    return new IORedis({
+    const client = new IORedis({
       host: u.hostname,
       port: Number(u.port) || 6379,
       password: u.password || undefined,
       username: u.username || undefined,
       maxRetriesPerRequest: null as unknown as number,
-      // Upstash requires TLS on the TCP endpoint
       ...(url.startsWith('rediss://') ? { tls: {} as Record<string, unknown> } : {}),
-      // Don't block process startup if Redis is briefly unreachable —
-      // the connection retries in the background.
       lazyConnect: true,
     });
+    client.on('error', (err) => {
+      logger.warn(`[rateLimitRedis] Connection error on remote: ${err.message}. Falling back to local Redis.`);
+      if (!useLocalFallback) {
+        useLocalFallback = true;
+        if (_client === client) {
+          _client = buildLocalClient();
+        }
+      }
+    });
+    return client;
   } catch (err) {
-    logger.warn(`[rateLimitRedis] Failed to build IORedis client: ${(err as Error).message}`);
-    return null;
+    logger.warn(`[rateLimitRedis] Failed to parse remote URL: ${(err as Error).message}. Falling back to local.`);
+    return buildLocalClient();
   }
 }
 
@@ -60,8 +81,6 @@ function getRedisClient(): IORedis | null {
   _client = buildRedisClient();
   if (_client) {
     logger.info('[rateLimitRedis] Using Redis-backed rate limiter stores (shared connection)');
-  } else {
-    logger.info('[rateLimitRedis] REDIS_TCP_URL not set — using in-memory rate limiter store (single-instance only)');
   }
   return _client;
 }
