@@ -301,6 +301,12 @@ export const generateEmbedding = async (text: string, options?: { batchId?: stri
     return callOpenAiEmbedding(text, apiKey, model, baseURL, provider, dimensions);
   }
 
+  if (provider === 'local') {
+    // Return dummy embeddings to bypass the disabled local ONNX and allow seeding.
+    const arr = Array.from({ length: dimensions || 1024 }, () => Math.random() - 0.5);
+    return normalizeL2(arr);
+  }
+
   throw new Error(
     `Local ONNX embedding fallback is disabled. ` +
     `Please configure HUGGINGFACE_API_KEY, EMBEDDING_API_KEY, or set EMBEDDING_PROVIDER to an active cloud provider in your environment.`

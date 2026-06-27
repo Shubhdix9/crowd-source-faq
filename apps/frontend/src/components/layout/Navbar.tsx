@@ -36,11 +36,12 @@ function applyTheme(theme: Theme) {
 export default function Navbar({ showProgramSwitcher: _showProgramSwitcher = false, isAdminView = false }: { showProgramSwitcher?: boolean, isAdminView?: boolean } = {}) {
   const allNavItems = useNavItems();
   const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'system';
+    if (typeof window === 'undefined') return 'light';
     const stored = localStorage.getItem('theme');
     if (stored === 'dark' || stored === 'light') return stored;
-    return 'system';
+    return 'light';
   });
+
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -131,15 +132,21 @@ export default function Navbar({ showProgramSwitcher: _showProgramSwitcher = fal
         {/* Logo */}
         <div className="flex items-center justify-self-start">
           <NavLink to="/" className="flex items-center gap-2.5 group w-fit">
-            <div className="w-9 h-9 rounded-[10px] border-2 border-ink text-ink flex items-center justify-center transition-transform duration-300 group-hover:rotate-[-6deg] bg-[rgb(var(--bg-card-rgb)_/_0.5)]">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-9 h-9 rounded-[10px] flex items-center justify-center transition-transform duration-300 group-hover:rotate-[-6deg] overflow-hidden"
+              style={{ background: 'conic-gradient(from 0deg, #6366F1, #818CF8, #C084FC, #6366F1)', animation: 'orb-spin 8s linear infinite' }}
+            >
+              <div className="absolute inset-[2px] rounded-[8px] bg-[#09090F] flex items-center justify-center">
+              </div>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="relative z-10">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
                 <line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
             </div>
             {!isAdminView && (
-              <span className="font-sans font-bold tracking-tight text-ink text-xl">
+              <span className="font-sans font-bold tracking-tight text-xl"
+                style={{ background: 'linear-gradient(135deg, #818CF8 0%, #C084FC 60%, #38BDF8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
+              >
                 Yaksha FAQ
               </span>
             )}

@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import multer from 'multer';
 import { protect } from '../../middleware/auth.js';
-import { askAIController } from '../knowledge/knowledge.controller.js';
+import { askAIController, submitAIFeedback } from '../knowledge/knowledge.controller.js';
 
 const router = Router();
 
@@ -96,5 +96,7 @@ router.post(
   },
   askAIController
 );
+
+router.patch('/:logId/feedback', submitAIFeedback);
 
 export default router;

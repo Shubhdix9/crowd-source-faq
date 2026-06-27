@@ -31,8 +31,8 @@ function bumpAnonCount(): number {
 }
 
 interface Source { kind: 'knowledge'|'faq'|'community'; title: string; snippet: string; score: number; href: string; id: string; aboveThreshold?: boolean; }
-interface AskResponse { question: string; answer: string; sources: Source[]; relevantCount: number; sourceCount: number; model: string; aiFailed: boolean; }
-interface ChatMessage { id: string; role: 'user'|'assistant'; content: string; sources?: Source[]; loading?: boolean; error?: string; }
+interface AskResponse { question: string; answer: string; sources: Source[]; relevantCount: number; sourceCount: number; model: string; aiFailed: boolean; logId?: string; }
+interface ChatMessage { id: string; role: 'user'|'assistant'; content: string; sources?: Source[]; loading?: boolean; error?: string; logId?: string; feedback?: 1 | -1; }
 
 /** File/image attachment queued in the chat composer. */
 interface PendingAttachment {
@@ -82,7 +82,7 @@ function SourceRow({ s, i, onNav }: { s: Source; i: number; onNav: (href: string
   );
 }
 
-function MessageBubble({ m, onNav }: { m: ChatMessage; onNav: (href: string) => void }) {
+function MessageBubble({ m, onNav, onFeedback }: { m: ChatMessage; onNav: (href: string) => void; onFeedback?: (id: string, helpful: boolean) => void }) {
   if (m.role === 'user') {
     return (<div className="flex justify-end"><div className="max-w-[80%] px-3.5 py-2 rounded-2xl rounded-br-md bg-accent text-accent-text text-sm shadow-sm shadow-accent/20">{m.content}</div></div>);
   }
@@ -111,6 +111,27 @@ function MessageBubble({ m, onNav }: { m: ChatMessage; onNav: (href: string) => 
           <div className="space-y-1 pl-1">
             <p className="text-[10px] uppercase tracking-wider text-ink-faint font-semibold pl-1">Sources ({m.sources.length})</p>
             {m.sources.map((s, i) => <SourceRow key={`${s.id}-${i}`} s={s} i={i} onNav={onNav} />)}
+          </div>
+        )}
+        {m.logId && onFeedback && (
+          <div className="flex items-center gap-2 pl-2 pt-1">
+            <button 
+              onClick={() => onFeedback(m.id, true)} 
+              disabled={m.feedback !== undefined}
+              className={`p-1.5 rounded hover:bg-mist transition-colors ${m.feedback === 1 ? 'text-accent' : 'text-ink-faint hover:text-accent'}`}
+              title="Helpful"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={m.feedback === 1 ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+            </button>
+            <button 
+              onClick={() => onFeedback(m.id, false)}
+              disabled={m.feedback !== undefined}
+              className={`p-1.5 rounded hover:bg-mist transition-colors ${m.feedback === -1 ? 'text-danger' : 'text-ink-faint hover:text-danger'}`}
+              title="Not Helpful"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={m.feedback === -1 ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
+            </button>
+            {m.feedback !== undefined && <span className="text-[10px] text-ink-soft animate-fade-in">Thanks for your feedback!</span>}
           </div>
         )}
       </div>
@@ -279,7 +300,7 @@ export default function AskAIButton() {
       } else {
         res = await api.post<AskResponse>('/ask-ai', { question: q });
       }
-      setMessages(m => m.map(msg => msg.id === aiMsg.id ? { ...msg, content: res.data.answer, sources: res.data.sources, loading: false } : msg));
+      setMessages(m => m.map(msg => msg.id === aiMsg.id ? { ...msg, content: res.data.answer, sources: res.data.sources, logId: res.data.logId, loading: false } : msg));
       if (!isAuthenticated) { const next = bumpAnonCount(); setAnonCount(next); if (next === ANON_AI_LIMIT) setTimeout(() => openModal('signin'), 1500); }
       // Release any preview URLs we held.
       sending.forEach((a) => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
@@ -296,15 +317,36 @@ export default function AskAIButton() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
   const reset = () => { setMessages([]); setQuery(''); };
   const handleSourceNav = useCallback((href: string) => { setPanel('collapsed'); navigate(href); }, [navigate]);
+  
+  const handleFeedback = async (msgId: string, helpful: boolean) => {
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg || !msg.logId || msg.feedback !== undefined) return;
+    
+    // Optimistic update
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, feedback: helpful ? 1 : -1 } : m));
+    
+    try {
+      await api.patch(`/ask-ai/${msg.logId}/feedback`, { helpful });
+    } catch (err) {
+      // Revert on failure
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, feedback: undefined } : m));
+    }
+  };
   const isExpanded = panel === 'expanded';
   const quotaExhausted = !isAuthenticated && anonCount >= ANON_AI_LIMIT;
 
   if (panel === 'collapsed') {
     return (
       <button onClick={() => setPanel('minimized')} className="fixed z-50 right-6 bottom-6 group" aria-label="Open FAQ Assistant" title="Ask the FAQ Assistant">
-        <div className="absolute inset-0 rounded-full bg-accent/20 animate-ping opacity-30 pointer-events-none" style={{ animationDuration: '3s' }} />
-        <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-accent to-accent-dark shadow-lg shadow-accent/30 flex items-center justify-center transition-transform duration-200 group-hover:scale-110 group-active:scale-95">
-          <SparkleIcon size={24} />
+        {/* Outer glow ring */}
+        <div className="absolute inset-0 rounded-full opacity-60 blur-md" style={{ background: 'conic-gradient(from 0deg, #6366F1, #818CF8, #C084FC, #38BDF8, #6366F1)', animation: 'orb-spin 4s linear infinite' }} />
+        {/* Main orb */}
+        <div className="relative w-14 h-14 rounded-full flex items-center justify-center transition-transform duration-200 group-hover:scale-110 group-active:scale-95 overflow-hidden"
+          style={{ background: 'conic-gradient(from 0deg, #6366F1, #818CF8, #C084FC, #38BDF8, #6366F1)', animation: 'orb-spin 4s linear infinite, glow-pulse 2s ease-in-out infinite' }}
+        >
+          <div className="absolute inset-[3px] rounded-full bg-[#09090F] flex items-center justify-center">
+            <SparkleIcon size={22} />
+          </div>
         </div>
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-5 h-5 flex items-center justify-center rounded-full bg-danger text-white text-[10px] font-bold px-1 shadow-md animate-bounce" style={{ animationDuration: '2s' }}>
@@ -322,10 +364,28 @@ export default function AskAIButton() {
   return (
     <>
       {isExpanded && (<div className="search-overlay z-[59] transition-opacity duration-300" onClick={() => setPanel('minimized')} aria-hidden="true" />)}
-      <div ref={panelRef} role="dialog" aria-label="FAQ Assistant" aria-modal={isExpanded} className={`z-[60] flex flex-col rounded-2xl overflow-hidden border border-border shadow-2xl shadow-ink/15 transition-all duration-300 ease-out bg-card ${panelClasses}`} style={{ maxHeight: isExpanded ? undefined : 'min(600px, calc(100vh - 100px))' }}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card select-none flex-shrink-0">
+      <div ref={panelRef} role="dialog" aria-label="FAQ Assistant" aria-modal={isExpanded} className={`z-[60] flex flex-col rounded-2xl overflow-hidden shadow-2xl transition-all duration-300 ease-out ${panelClasses}`}
+        style={{
+          maxHeight: isExpanded ? undefined : 'min(600px, calc(100vh - 100px))',
+          background: 'rgba(12, 12, 28, 0.85)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid rgba(129, 140, 248, 0.2)',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(129,140,248,0.08), 0 0 80px rgba(99,102,241,0.1)',
+        }}
+      >
+        {/* Panel header with gradient top border */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(129,140,248,0.15)] select-none flex-shrink-0 relative overflow-hidden">
+          {/* Top gradient line */}
+          <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ background: 'linear-gradient(90deg, transparent, #818CF8, #C084FC, #38BDF8, transparent)' }} />
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center shadow-md shadow-accent/25"><SparkleIcon size={14} /></div>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center relative overflow-hidden"
+              style={{ background: 'conic-gradient(from 0deg, #6366F1, #818CF8, #C084FC)', animation: 'orb-spin 6s linear infinite' }}
+            >
+              <div className="absolute inset-[2px] rounded-[9px] bg-[#0A0A1A] flex items-center justify-center">
+                <SparkleIcon size={14} />
+              </div>
+            </div>
             <div>
               <h3 className="text-sm font-semibold text-ink leading-tight">FAQ Assistant</h3>
               <p className="text-[10px] text-ink-faint">Powered by RAG &#183; Search FAQ, Wiki, and Community knowledge</p>
@@ -363,7 +423,7 @@ export default function AskAIButton() {
               </div>
             </div>
           )}
-          {messages.map(m => <MessageBubble key={m.id} m={m} onNav={handleSourceNav} />)}
+          {messages.map(m => <MessageBubble key={m.id} m={m} onNav={handleSourceNav} onFeedback={handleFeedback} />)}
         </div>
         {/* Hidden file input — triggered by the + button below. */}
         <input

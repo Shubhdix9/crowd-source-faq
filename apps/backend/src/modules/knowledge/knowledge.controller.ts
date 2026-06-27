@@ -10,6 +10,7 @@ import {
 import { runRag } from '../ai/rag.service.js';
 import { TranscriptKnowledge } from './transcript-knowledge.model.js';
 import { adminLog } from '../../utils/http/logger.js';
+import ChatLog from '../ai/chat-log.model.js';
 
 // ─── List all knowledge entries ──────────────────────────────────────────────
 
@@ -256,6 +257,18 @@ export const askAIController = async (req: Request, res: Response): Promise<void
         : `\n\n(AI synthesis is temporarily unavailable; click the source below to read the full answer.)`);
     }
 
+    let logId: string | undefined;
+    try {
+      const chatLog = await ChatLog.create({
+        userMessage: question,
+        botReply: answer,
+        userId: (req as any).user?._id,
+      });
+      logId = chatLog._id.toString();
+    } catch (e) {
+      adminLog.error('[askAI] Failed to save chat log', { error: (e as Error).message });
+    }
+
     // Mark each source as relevant (above per-type threshold) so the
     // frontend can dim/grey-out the noise.
     res.json({
@@ -269,9 +282,41 @@ export const askAIController = async (req: Request, res: Response): Promise<void
       sourceCount: sources.length,
       model: result.model,
       aiFailed,
+      logId,
     });
   } catch (err) {
     adminLog.error('[askAI] failed', { error: (err as Error).message });
+    res.status(500).json({ message: (err as Error).message });
+  }
+};
+
+// ─── Submit feedback for an AI chat response ────────────────────────────────
+export const submitAIFeedback = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { logId } = req.params;
+    const { helpful } = req.body as { helpful?: boolean };
+    
+    if (helpful === undefined) {
+      res.status(400).json({ message: 'Missing helpful boolean' });
+      return;
+    }
+    
+    const feedback = helpful ? 1 : -1;
+    
+    const chatLog = await ChatLog.findByIdAndUpdate(
+      logId,
+      { $set: { feedback } },
+      { new: true }
+    );
+    
+    if (!chatLog) {
+      res.status(404).json({ message: 'Chat log not found' });
+      return;
+    }
+    
+    res.json({ message: 'Feedback recorded' });
+  } catch (err) {
+    adminLog.error('[askAI feedback] failed', { error: (err as Error).message });
     res.status(500).json({ message: (err as Error).message });
   }
 };

@@ -619,44 +619,50 @@ export default function HomePage() {
       <HomeDoodles />
 
       <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-[112px] sm:pt-[128px] pb-10 relative z-10">
-        {/* ─── HERO (badge · eyebrow · title · stats · search · pills) ─── */}
+        {/* ─── HERO (badge · eyebrow · title · ticker · chips · search) ─── */}
         <section className="relative pt-2 sm:pt-4 pb-2 text-center" aria-label="Page header">
-          {/* Icon badge */}
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-accent/10 text-accent mb-3 relative z-10">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="9.5" />
-              <path d="M9.5 9a2.5 2.5 0 1 1 4 2c-1 0.7-1.5 1.2-1.5 2.5" />
-              <path d="M12 17.5h.01" />
-            </svg>
-          </div>
+          {/* Ambient glow orbs */}
+          <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[600px] h-[300px] pointer-events-none" style={{ background: 'radial-gradient(ellipse, rgba(99,102,241,0.12) 0%, transparent 70%)', filter: 'blur(40px)' }} />
 
-          {/* Program eyebrow */}
+          {/* Program eyebrow badge */}
           {currentBatch?.name && (
-            <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-accent relative z-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-semibold mb-5 relative z-10"
+              style={{ background: 'rgba(129,140,248,0.08)', borderColor: 'rgba(129,140,248,0.25)', color: '#a5b4fc' }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#818CF8] animate-pulse" />
               {currentBatch.name}
-            </p>
+            </div>
           )}
 
-          <h1 className="font-serif text-[1.75rem] sm:text-4xl md:text-5xl lg:text-[3.2rem] leading-[1.15] tracking-tight text-ink mb-6 mt-1.5 relative z-10">
-            Ask. Discover. Get{' '}
-            <span className="doodle-underline font-serif" style={{ fontWeight: 700 }}>Solved.</span>
-            <svg className="inline-block ml-2 align-middle" width="24" height="18" viewBox="0 0 24 18" style={{ opacity: 0.18 }} aria-hidden="true">
-              <path d="M2 12 Q6 4 12 9 Q18 14 22 6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-            </svg>
+          <h1 className="font-serif text-[1.75rem] sm:text-4xl md:text-5xl lg:text-[3.2rem] leading-[1.15] tracking-tight text-ink mb-3 mt-1 relative z-10">
+            Intern FAQs —{' '}
+            <span className="gradient-text-indigo font-serif" style={{ fontWeight: 700 }}>solved.</span>
           </h1>
 
-          <p className="text-sm sm:text-base text-ink-soft max-w-lg leading-relaxed mx-auto px-2 relative z-10">
-            Search your doubt or explore solved questions from the community.
+          <p className="text-sm sm:text-base text-ink-soft max-w-lg leading-relaxed mx-auto px-2 relative z-10 mb-4">
+            Find immediate answers to your program, certificate, and internship doubts.
           </p>
 
+          {/* ─── STAT BADGES ─── */}
           {total > 0 && (
-            <p className="text-[11px] text-ink-faint mt-3 uppercase tracking-wider font-semibold relative z-10">
-              {total} {total === 1 ? 'FAQ' : 'FAQs'} · {categories.length} categories
-            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-8 relative z-10">
+              <div className="hero-stat-badge">
+                <span className="text-accent font-bold text-sm">{total}</span>
+                <span className="text-ink-soft text-xs">FAQs answered</span>
+              </div>
+              <div className="hero-stat-badge">
+                <span className="text-accent font-bold text-sm">{categories.length}</span>
+                <span className="text-ink-soft text-xs">categories</span>
+              </div>
+              <div className="hero-stat-badge">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-ink-soft text-xs">Live &amp; updated</span>
+              </div>
+            </div>
           )}
 
           {/* ─── SEARCH BAR ─── */}
-          <div className="mt-10 max-w-3xl mx-auto px-2">
+          <div className="mt-2 max-w-3xl mx-auto px-2">
             <div className={`relative ${showDropdown ? 'z-40' : 'z-20'}`}>
               <SearchBar
                 ref={searchBarRef}
@@ -683,7 +689,54 @@ export default function HomePage() {
             </div>
           </div>
 
-          </section>
+          {/* ─── CATEGORY CHIPS ─── */}
+          {categories.length > 0 && !loading && (
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-6 relative z-10 px-4">
+              {categories.slice(0, 7).map((cat, idx) => (
+                <button
+                  key={cat}
+                  onClick={() => handleCategoryOpen(cat)}
+                  className="hero-chip"
+                  style={{ animationDelay: `${idx * 60}ms` }}
+                >
+                  <span>{getCategoryIcon(cat)}</span>
+                  <span className="truncate max-w-[120px]">{formatCategoryName(cat).replace(/^\d+\.\s*/, '')}</span>
+                  <span className="opacity-60 text-[10px]">{grouped[cat]?.length ?? 0}</span>
+                </button>
+              ))}
+              {categories.length > 7 && (
+                <button
+                  onClick={scrollToAllCategories}
+                  className="hero-chip"
+                  style={{ animationDelay: '420ms' }}
+                >
+                  +{categories.length - 7} more
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ─── FAQ TICKER ─── */}
+          {flatQuestions.length > 0 && !loading && (
+            <div className="mt-8 overflow-hidden relative z-10" style={{ maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)' }}>
+              <div className="faq-ticker-track">
+                {/* Duplicate the list for seamless looping */}
+                {[...flatQuestions.slice(0, 10), ...flatQuestions.slice(0, 10)].map((item, idx) => (
+                  <button
+                    key={`${item._id}-${idx}`}
+                    onClick={() => handleQuestionOpen(item)}
+                    className="inline-flex items-center gap-2 px-4 py-2 mx-2 rounded-full text-xs text-ink-soft hover:text-ink border border-border/50 hover:border-accent/40 bg-card/30 hover:bg-card/60 transition-all duration-200 shrink-0"
+                  >
+                    <span className="text-accent opacity-60">💡</span>
+                    <span className="truncate max-w-[200px]">{getQuestionTitle(item)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </section>
+
 
         {/* ─── LOADING / ERROR STATES ──────────────────────────────── */}
         {loading && (
@@ -776,7 +829,7 @@ export default function HomePage() {
             {/* ─── 3-COLUMN: Most Popular · Recent FAQs · Browse Categories ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
               {/* ───── MOST POPULAR ───── */}
-              <section className="bg-card rounded-2xl border border-border p-6 flex flex-col h-full" aria-labelledby="most-popular-heading">
+              <section className="glass-card rounded-2xl p-6 flex flex-col h-full" aria-labelledby="most-popular-heading">
                 <header className="flex items-center justify-between mb-6 shrink-0">
                   <div className="flex items-center gap-2 text-accent">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -813,7 +866,7 @@ export default function HomePage() {
               </section>
 
               {/* ───── RECENT FAQs ───── */}
-              <section className="bg-card rounded-2xl border border-border p-6 flex flex-col h-full" aria-labelledby="recent-faqs-heading">
+              <section className="glass-card rounded-2xl p-6 flex flex-col h-full" aria-labelledby="recent-faqs-heading">
                 <header className="flex items-center justify-between mb-6 shrink-0">
                   <div className="flex items-center gap-2 text-accent">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -850,7 +903,7 @@ export default function HomePage() {
               </section>
 
               {/* ───── BROWSE CATEGORIES ───── */}
-              <section className="bg-card rounded-2xl border border-border p-6 flex flex-col h-full" aria-labelledby="browse-categories-heading">
+              <section className="glass-card rounded-2xl p-6 flex flex-col h-full" aria-labelledby="browse-categories-heading">
                 <header className="flex items-center justify-between mb-6 shrink-0">
                   <div className="flex items-center gap-2 text-accent">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
