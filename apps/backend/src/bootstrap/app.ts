@@ -33,9 +33,6 @@ export function createApp(config: any): Express {
   // Register all middlewares
   registerMiddleware(app, config);
 
-  // Register all routes
-  registerRoutes(app);
-
   app.get('/csfaq/api/health', async (req: Request, res: Response) => {
     let dbStatus = 'disconnected';
     try {
@@ -84,6 +81,9 @@ export function createApp(config: any): Express {
       res.status(500).json({ message: 'metrics unavailable' });
     }
   });
+
+  // Register all routes
+  registerRoutes(app);
 
   // Serve static assets and SPA fallback
   const __dirname = path.dirname(fileURLToPath(import.meta.url));

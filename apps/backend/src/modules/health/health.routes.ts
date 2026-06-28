@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { getHealth } from './health.controller.js';
-import { internalApiKeyOrAdmin } from '../../middleware/internalApiKeyOrAdmin.js';
 
 const router = Router();
 
@@ -17,6 +16,6 @@ const healthLimiter = rateLimit({
   message: { message: 'Too many health requests. Please slow down.' },
 });
 
-router.get('/', healthLimiter, internalApiKeyOrAdmin, getHealth);
+router.get('/', healthLimiter, getHealth);
 
 export default router;
